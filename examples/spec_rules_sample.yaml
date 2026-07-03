@@ -1,0 +1,24 @@
+# 示例：人工补充的 PPT-DB 映射规则
+# 真实项目中可以只写有特殊规则的页面；普通页面优先使用数据库配置表自动生成。
+
+wave: 25q3
+rules:
+  - page: 7
+    note: "品牌声量页，图表 sort=1 使用总样本结果表。"
+    expected_tables:
+      - share_of_voice_total_25q3
+    chart_rules:
+      - sort: 1
+        table: share_of_voice_total_25q3
+        required_columns:
+          - brand
+          - value
+        value_format: percent_1_decimal
+
+  - page: 8
+    note: "Message recall 页，文本 N 值来自 bh_charts_replaces，图表来自 DP 结果表。"
+    expected_tables:
+      - message_recall_dp_total_25q3
+    text_rules:
+      - placeholder: "${VIEW_8_N}"
+        required: true
