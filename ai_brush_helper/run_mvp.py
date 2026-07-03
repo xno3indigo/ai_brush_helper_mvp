@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
+import posixpath
 import re
 import sys
 import zipfile
@@ -37,11 +39,20 @@ except ImportError as exc:  # pragma: no cover
 
 DRAWING_NS = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
 CHART_NS = {"c": "http://schemas.openxmlformats.org/drawingml/2006/chart"}
+REL_NS = {"r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+A_NS_URI = "http://schemas.openxmlformats.org/drawingml/2006/main"
+C_NS_URI = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+R_NS_URI = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PLACEHOLDER_RE = re.compile(r"\$\{[^}]+\}")
 SLIDE_RE = re.compile(r"ppt/slides/slide(\d+)\.xml$")
 QUESTION_CODE_RE = re.compile(r"^([A-Za-z]+[A-Za-z0-9]*?(?:x?\d+)?(?:_[A-Za-z0-9]+)*)")
 CONFIG_TABLE_NAMES = {"bh_database_table", "bh_database_table_field", "bh_charts_replaces"}
 WAVE_SUFFIX_RE = re.compile(r"_\d{2}q[1-4]$", re.IGNORECASE)
+
+ET.register_namespace("a", A_NS_URI)
+ET.register_namespace("c", C_NS_URI)
+ET.register_namespace("r", R_NS_URI)
 
 MODULE_KEYWORDS = [
     ("brand_awareness", ["品牌知晓", "品牌知名", "awareness", "tom"]),
@@ -169,9 +180,15 @@ def placeholder_inner(value: str) -> str:
 
 def find_export_file(export_dir: Path, table_name: str) -> Path | None:
     candidates = []
-    for suffix in [".csv", ".xlsx", ".xlsm"]:
-        candidates.extend(export_dir.rglob(table_name + suffix))
+    for stem in [table_name, table_name + ".generated"]:
+        for suffix in [".csv", ".xlsx", ".xlsm"]:
+            candidates.extend(export_dir.rglob(stem + suffix))
     return candidates[0] if candidates else None
+
+
+def is_config_stem(stem: str) -> bool:
+    normalized = stem.strip()
+    return normalized in CONFIG_TABLE_NAMES or normalized.replace(".generated", "") in CONFIG_TABLE_NAMES
 
 
 def load_db_exports(export_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[str]], dict[str, Any]]:
@@ -191,7 +208,7 @@ def load_db_exports(export_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], 
         if not path.is_file() or path.suffix.lower() not in {".csv", ".xlsx", ".xlsm"}:
             continue
         stem = table_file_stem(path)
-        if stem in CONFIG_TABLE_NAMES:
+        if is_config_stem(stem):
             continue
         try:
             rows = read_table_file(path)
@@ -209,6 +226,21 @@ def load_db_exports(export_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], 
         "config_files": export_files,
     }
     return config_tables, result_headers, meta
+
+
+def load_result_rows(export_dir: Path) -> dict[str, list[dict[str, Any]]]:
+    result_rows: dict[str, list[dict[str, Any]]] = {}
+    for path in sorted(export_dir.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in {".csv", ".xlsx", ".xlsm"}:
+            continue
+        stem = table_file_stem(path)
+        if is_config_stem(stem):
+            continue
+        try:
+            result_rows[stem] = read_table_file(path)
+        except Exception:
+            continue
+    return result_rows
 
 
 def resolve_result_table_name(table_name: str, result_headers: dict[str, list[str]]) -> str | None:
@@ -1292,6 +1324,483 @@ def generate_inferred_config_spec(
     return "\n".join(lines) + "\n"
 
 
+def qn(namespace: str, tag: str) -> str:
+    return f"{{{namespace}}}{tag}"
+
+
+def parse_yaml_scalar(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value.strip("'\"")
+
+
+def parse_mapping_spec_to_config(spec_path: Path) -> dict[str, list[dict[str, Any]]]:
+    try:
+        lines = spec_path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        lines = spec_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+
+    tables: list[dict[str, Any]] = []
+    fields: list[dict[str, Any]] = []
+    replaces: list[dict[str, Any]] = []
+    current_page = 0
+    current_section = ""
+    current_text: dict[str, Any] | None = None
+    current_chart: dict[str, Any] | None = None
+    current_field: dict[str, Any] | None = None
+    table_id = 1
+
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        page_match = re.match(r"-\s*page\s*:\s*(\d+)", stripped)
+        if page_match:
+            current_page = int(page_match.group(1))
+            current_section = ""
+            current_text = None
+            current_chart = None
+            current_field = None
+            continue
+        if stripped in {"text_bindings:", "text_replaces:"}:
+            current_section = "text"
+            continue
+        if stripped in {"chart_bindings:", "chart_configs:"}:
+            current_section = "chart"
+            continue
+        if stripped == "fields:":
+            current_section = "fields"
+            continue
+
+        sort_match = re.match(r"-\s*sort\s*:\s*(\d+)", stripped)
+        if sort_match and current_page > 0:
+            current_section = "chart"
+            current_chart = {
+                "id": table_id,
+                "page": current_page,
+                "sort": int(sort_match.group(1)),
+                "name": "",
+                "group_sign": "",
+                "pivot": "0",
+            }
+            tables.append(current_chart)
+            current_field = None
+            table_id += 1
+            continue
+
+        if current_section == "text":
+            placeholder_match = re.match(r"-\s*(?:placeholder|name)\s*:\s*(.+)", stripped)
+            if placeholder_match:
+                current_text = {"page": current_page, "name": placeholder_inner(parse_yaml_scalar(placeholder_match.group(1)))}
+                replaces.append(current_text)
+                continue
+            value_match = re.match(r"value\s*:\s*(.*)", stripped)
+            if value_match and current_text is not None:
+                current_text["value"] = parse_yaml_scalar(value_match.group(1))
+                continue
+
+        if current_section == "chart":
+            if current_chart is None:
+                continue
+            for key, aliases in {
+                "name": ["table", "name"],
+                "group_sign": ["group_sign"],
+                "pivot": ["pivot"],
+            }.items():
+                for alias in aliases:
+                    match = re.match(alias + r"\s*:\s*(.+)", stripped)
+                    if match:
+                        current_chart[key] = parse_yaml_scalar(match.group(1))
+                        break
+            continue
+
+        if current_section == "fields":
+            field_match = re.match(r"-\s*db_column\s*:\s*(.+)", stripped)
+            if field_match and current_chart is not None:
+                current_field = {
+                    "table_id": current_chart["id"],
+                    "database_column_name": parse_yaml_scalar(field_match.group(1)),
+                    "name": "",
+                }
+                fields.append(current_field)
+                continue
+            ppt_name_match = re.match(r"ppt_name\s*:\s*(.+)", stripped)
+            if ppt_name_match and current_field is not None:
+                current_field["name"] = parse_yaml_scalar(ppt_name_match.group(1))
+
+    return {
+        "bh_database_table": tables,
+        "bh_database_table_field": fields,
+        "bh_charts_replaces": replaces,
+    }
+
+
+def build_render_bindings(config_tables: dict[str, list[dict[str, Any]]]) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    replace_map: dict[str, str] = {}
+    for row in config_tables.get("bh_charts_replaces", []):
+        name = clean_one_line(row_get(row, "name", "NAME", "placeholder", default=""), 300)
+        value = clean_one_line(row_get(row, "value", "VALUE", default=""), 1000)
+        if name and value and value != "TODO_REVIEW":
+            replace_map[normalize_placeholder(name)] = value
+
+    fields_by_ref: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for field in config_tables.get("bh_database_table_field", []):
+        refs = [
+            row_get(field, "table_id", "tableId", "database_table_id", default=""),
+            row_get(field, "table_name", "database_table_name", default=""),
+        ]
+        for ref in refs:
+            ref_text = clean_one_line(ref, 300)
+            if ref_text:
+                fields_by_ref[ref_text].append(field)
+
+    chart_bindings: list[dict[str, Any]] = []
+    for row in config_tables.get("bh_database_table", []):
+        table_id = clean_one_line(row_get(row, "id", "ID", "table_id", default=""), 200)
+        table_name = clean_one_line(row_get(row, "name", "NAME", "table", "table_name", default=""), 300)
+        group_sign = clean_one_line(row_get(row, "group_sign", "GROUP_SIGN", default=""), 300)
+        fields: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        for ref in [table_id, table_name, group_sign]:
+            for field in fields_by_ref.get(clean_one_line(ref, 300), []):
+                marker = id(field)
+                if marker not in seen:
+                    seen.add(marker)
+                    fields.append(field)
+        chart_bindings.append(
+            {
+                "page": safe_int(row_get(row, "page", "PAGE", default=0)),
+                "sort": safe_int(row_get(row, "sort", "SORT", default=0)),
+                "table": table_name,
+                "group_sign": group_sign,
+                "pivot": row_get(row, "pivot", "PIVOT", default=""),
+                "fields": fields,
+            }
+        )
+    return replace_map, chart_bindings
+
+
+def replace_text_nodes(xml_bytes: bytes, replace_map: dict[str, str]) -> tuple[bytes, int, list[str]]:
+    root = ET.fromstring(xml_bytes)
+    replacements = 0
+    for node in root.findall(".//a:t", DRAWING_NS):
+        text = node.text or ""
+
+        def repl(match: re.Match[str]) -> str:
+            nonlocal replacements
+            normalized = normalize_placeholder(match.group(0))
+            if normalized in replace_map:
+                replacements += 1
+                return replace_map[normalized]
+            return match.group(0)
+
+        node.text = PLACEHOLDER_RE.sub(repl, text)
+
+    joined = " ".join(node.text or "" for node in root.findall(".//a:t", DRAWING_NS))
+    unresolved = sorted({normalize_placeholder(item) for item in PLACEHOLDER_RE.findall(joined)})
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True), replacements, unresolved
+
+
+def relationship_targets(archive: zipfile.ZipFile, rels_path: str, base_dir: str) -> dict[str, str]:
+    if rels_path not in archive.namelist():
+        return {}
+    root = ET.fromstring(archive.read(rels_path))
+    result: dict[str, str] = {}
+    for rel in root.findall(f".//{{{PACKAGE_REL_NS}}}Relationship"):
+        rel_id = rel.attrib.get("Id", "")
+        target = rel.attrib.get("Target", "")
+        if rel_id and target:
+            result[rel_id] = posixpath.normpath(posixpath.join(base_dir, target))
+    return result
+
+
+def slide_chart_paths(archive: zipfile.ZipFile, slide_no: int) -> list[str]:
+    slide_path = f"ppt/slides/slide{slide_no}.xml"
+    if slide_path not in archive.namelist():
+        return []
+    root = ET.fromstring(archive.read(slide_path))
+    rels = relationship_targets(
+        archive,
+        f"ppt/slides/_rels/slide{slide_no}.xml.rels",
+        "ppt/slides",
+    )
+    paths: list[str] = []
+    for chart in root.findall(".//c:chart", {**CHART_NS, **REL_NS}):
+        rel_id = chart.attrib.get(qn(R_NS_URI, "id"), "")
+        if rel_id in rels:
+            paths.append(rels[rel_id])
+    return paths
+
+
+def to_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(str(value).replace("%", "").replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def is_numeric_column(rows: list[dict[str, Any]], column: str) -> bool:
+    values = [to_float(row.get(column)) for row in rows if row.get(column) not in (None, "")]
+    return bool(values) and sum(value is not None for value in values) >= max(1, len(values) // 2)
+
+
+def set_cache_points(cache: ET.Element, values: list[Any], numeric: bool) -> None:
+    for child in list(cache):
+        if child.tag in {qn(C_NS_URI, "ptCount"), qn(C_NS_URI, "pt")}:
+            cache.remove(child)
+    pt_count = ET.Element(qn(C_NS_URI, "ptCount"), {"val": str(len(values))})
+    cache.insert(0, pt_count)
+    insert_index = 1
+    for index, value in enumerate(values):
+        pt = ET.Element(qn(C_NS_URI, "pt"), {"idx": str(index)})
+        v = ET.SubElement(pt, qn(C_NS_URI, "v"))
+        if numeric:
+            number = to_float(value)
+            v.text = "" if number is None else f"{number:g}"
+        else:
+            v.text = "" if value is None else str(value)
+        cache.insert(insert_index, pt)
+        insert_index += 1
+
+
+def first_cache(root: ET.Element, path: str) -> ET.Element | None:
+    container = root.find(path, CHART_NS)
+    if container is None:
+        return None
+    cache = container.find(".//c:strCache", CHART_NS)
+    if cache is not None:
+        return cache
+    return container.find(".//c:numCache", CHART_NS)
+
+
+def update_series_text(ser: ET.Element, label: str) -> None:
+    tx = ser.find("c:tx", CHART_NS)
+    if tx is None:
+        tx = ET.SubElement(ser, qn(C_NS_URI, "tx"))
+    literal = tx.find("c:v", CHART_NS)
+    if literal is not None:
+        literal.text = label
+        return
+    cache = tx.find(".//c:strCache", CHART_NS)
+    if cache is not None:
+        set_cache_points(cache, [label], numeric=False)
+
+
+def update_chart_cache_xml(
+    chart_bytes: bytes,
+    rows: list[dict[str, Any]],
+    fields: list[dict[str, Any]],
+) -> tuple[bytes, dict[str, Any]]:
+    root = ET.fromstring(chart_bytes)
+    columns = [
+        clean_one_line(row_get(field, "database_column_name", "DATABASE_COLUMN_NAME", "db_column", default=""), 200)
+        for field in fields
+    ]
+    display_names = [
+        clean_one_line(row_get(field, "name", "NAME", "ppt_name", default=""), 200)
+        for field in fields
+    ]
+    columns = [column for column in columns if column]
+    if not rows:
+        return chart_bytes, {"status": "missing_result_rows", "updated_series": 0}
+    missing_columns = [column for column in columns if column not in rows[0]]
+    if missing_columns:
+        return chart_bytes, {"status": "missing_columns", "missing_columns": missing_columns, "updated_series": 0}
+    if not columns:
+        return chart_bytes, {"status": "missing_field_config", "updated_series": 0}
+
+    numeric_columns = [column for column in columns if is_numeric_column(rows, column)]
+    category_columns = [column for column in columns if column not in numeric_columns]
+    category_column = category_columns[0] if category_columns else columns[0]
+    value_columns = [column for column in columns if column != category_column and column in numeric_columns]
+    if not value_columns and category_column in numeric_columns:
+        value_columns = [category_column]
+        category_values = [str(index + 1) for index, _row in enumerate(rows)]
+    else:
+        category_values = [row.get(category_column, "") for row in rows]
+    if not value_columns:
+        return chart_bytes, {"status": "no_numeric_value_columns", "updated_series": 0}
+
+    series = root.findall(".//c:ser", CHART_NS)
+    if not series:
+        return chart_bytes, {"status": "unsupported_no_series", "updated_series": 0}
+
+    updated = 0
+    for index, ser in enumerate(series[: len(value_columns)]):
+        value_column = value_columns[index]
+        label = display_names[columns.index(value_column)] if value_column in columns and columns.index(value_column) < len(display_names) else value_column
+        update_series_text(ser, label or value_column)
+        cat_cache = first_cache(ser, "c:cat")
+        if cat_cache is not None:
+            set_cache_points(cat_cache, category_values, numeric=False)
+        val_cache = first_cache(ser, "c:val")
+        if val_cache is not None:
+            set_cache_points(val_cache, [row.get(value_column, "") for row in rows], numeric=True)
+            updated += 1
+
+    status = "ok"
+    if updated == 0:
+        status = "unsupported_no_value_cache"
+    elif len(series) != len(value_columns):
+        status = "partial_series_count_mismatch"
+    return (
+        ET.tostring(root, encoding="utf-8", xml_declaration=True),
+        {
+            "status": status,
+            "updated_series": updated,
+            "category_column": category_column,
+            "value_columns": value_columns,
+            "chart_series": len(series),
+        },
+    )
+
+
+def embedded_workbook_paths(archive: zipfile.ZipFile, chart_path: str) -> list[str]:
+    chart_name = posixpath.basename(chart_path)
+    rels_path = posixpath.join(posixpath.dirname(chart_path), "_rels", chart_name + ".rels")
+    rels = relationship_targets(archive, rels_path, posixpath.dirname(chart_path))
+    return [path for path in rels.values() if path.startswith("ppt/embeddings/") and path.lower().endswith((".xlsx", ".xlsm"))]
+
+
+def update_embedded_workbook(workbook_bytes: bytes, rows: list[dict[str, Any]], columns: list[str]) -> bytes:
+    workbook = load_workbook(io.BytesIO(workbook_bytes))
+    sheet = workbook[workbook.sheetnames[0]]
+    if sheet.max_row:
+        sheet.delete_rows(1, sheet.max_row)
+    for col_index, column in enumerate(columns, start=1):
+        sheet.cell(row=1, column=col_index, value=column)
+    for row_index, row in enumerate(rows, start=2):
+        for col_index, column in enumerate(columns, start=1):
+            sheet.cell(row=row_index, column=col_index, value=row.get(column))
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def render_pptx(
+    pptx_path: Path,
+    output_pptx: Path,
+    config_tables: dict[str, list[dict[str, Any]]],
+    result_rows: dict[str, list[dict[str, Any]]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    replace_map, chart_bindings = build_render_bindings(config_tables)
+    replacements_by_file: dict[str, bytes] = {}
+    validation_rows: list[dict[str, Any]] = []
+    text_replacement_count = 0
+    unresolved_after_text: set[str] = set()
+
+    ensure_dir(output_pptx.parent)
+    with zipfile.ZipFile(pptx_path, "r") as archive:
+        slide_files = ppt_slide_files(archive)
+        chart_paths_by_slide = {
+            int(SLIDE_RE.match(slide_file).group(1)): slide_chart_paths(archive, int(SLIDE_RE.match(slide_file).group(1)))
+            for slide_file in slide_files
+        }
+
+        for slide_file in slide_files:
+            slide_no = int(SLIDE_RE.match(slide_file).group(1))
+            updated_xml, count, unresolved = replace_text_nodes(archive.read(slide_file), replace_map)
+            replacements_by_file[slide_file] = updated_xml
+            text_replacement_count += count
+            unresolved_after_text.update(unresolved)
+            validation_rows.append(
+                {
+                    "type": "text",
+                    "page": slide_no,
+                    "target": slide_file,
+                    "status": "ok" if not unresolved else "unresolved_placeholders",
+                    "detail": " | ".join(unresolved),
+                    "updated_items": count,
+                }
+            )
+
+        for binding in chart_bindings:
+            page = safe_int(binding.get("page"))
+            sort = safe_int(binding.get("sort"))
+            table_name = clean_one_line(binding.get("table", ""), 300)
+            resolved_table = resolve_result_table_name(table_name, {name: list(rows[0].keys()) if rows else [] for name, rows in result_rows.items()})
+            chart_paths = chart_paths_by_slide.get(page, [])
+            if sort <= 0 or sort > len(chart_paths):
+                validation_rows.append(
+                    {
+                        "type": "chart",
+                        "page": page,
+                        "target": f"chart_{sort}",
+                        "status": "missing_chart_position",
+                        "detail": f"slide_has_{len(chart_paths)}_charts",
+                        "updated_items": 0,
+                    }
+                )
+                continue
+            if not resolved_table:
+                validation_rows.append(
+                    {
+                        "type": "chart",
+                        "page": page,
+                        "target": f"chart_{sort}",
+                        "status": "missing_result_table",
+                        "detail": table_name,
+                        "updated_items": 0,
+                    }
+                )
+                continue
+
+            chart_path = chart_paths[sort - 1]
+            rows = result_rows.get(resolved_table, [])
+            chart_bytes, chart_report = update_chart_cache_xml(archive.read(chart_path), rows, binding.get("fields", []))
+            replacements_by_file[chart_path] = chart_bytes
+
+            workbook_status = "not_found"
+            field_columns = [
+                clean_one_line(row_get(field, "database_column_name", "DATABASE_COLUMN_NAME", "db_column", default=""), 200)
+                for field in binding.get("fields", [])
+            ]
+            field_columns = [column for column in field_columns if column]
+            for workbook_path in embedded_workbook_paths(archive, chart_path):
+                if field_columns and workbook_path in archive.namelist():
+                    try:
+                        replacements_by_file[workbook_path] = update_embedded_workbook(archive.read(workbook_path), rows, field_columns)
+                        workbook_status = "updated"
+                    except Exception as exc:
+                        workbook_status = f"failed:{exc}"
+
+            validation_rows.append(
+                {
+                    "type": "chart",
+                    "page": page,
+                    "target": chart_path,
+                    "status": chart_report.get("status", "unknown"),
+                    "detail": json.dumps({**chart_report, "table": resolved_table, "workbook": workbook_status}, ensure_ascii=False),
+                    "updated_items": chart_report.get("updated_series", 0),
+                }
+            )
+
+        with zipfile.ZipFile(output_pptx, "w", zipfile.ZIP_DEFLATED) as output:
+            for item in archive.infolist():
+                output.writestr(item, replacements_by_file.get(item.filename, archive.read(item.filename)))
+
+    _, output_slides, output_meta = extract_ppt_placeholders(output_pptx)
+    unresolved_count = output_meta["placeholder_count"]
+    report = {
+        "input_pptx": str(pptx_path),
+        "output_pptx": str(output_pptx),
+        "text_replacements": text_replacement_count,
+        "unresolved_placeholders_after_render": unresolved_count,
+        "charts_requested": len(chart_bindings),
+        "charts_ok": sum(1 for row in validation_rows if row["type"] == "chart" and row["status"] == "ok"),
+        "charts_partial_or_failed": sum(1 for row in validation_rows if row["type"] == "chart" and row["status"] != "ok"),
+        "output_slide_count": len(output_slides),
+        "unresolved_placeholders_sample": sorted(unresolved_after_text)[:100],
+    }
+    return validation_rows, report
+
+
 def infer_topic_from_path(path: Path) -> str:
     name = path.stem.lower()
     mapping = {
@@ -1391,11 +1900,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create PPT-to-DB mapping and brush-data extraction reports.")
     parser.add_argument(
         "--mode",
-        choices=["mapping", "infer-config", "extract"],
+        choices=["mapping", "infer-config", "render", "extract"],
         default="mapping",
         help=(
             "mapping: validate existing config tables. "
             "infer-config: generate draft config tables from PPT/result tables. "
+            "render: replace PPT text and refresh supported chart caches. "
             "extract: legacy PPT + Excel + old code reports."
         ),
     )
@@ -1405,6 +1915,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--db-export-dir", type=Path, help="Directory containing DB config/result table exports.")
     parser.add_argument("--history-config-dir", type=Path, help="Optional previous-wave config exports for infer-config mode.")
     parser.add_argument("--spec", type=Path, help="Optional reviewed spec/rules file for traceability.")
+    parser.add_argument("--mapping-spec", type=Path, help="Optional mapping_spec.generated.yaml for render mode.")
+    parser.add_argument("--output-pptx", type=Path, help="Rendered PPTX path; default is under --out.")
     parser.add_argument("--wave", default="25q3", help="Target wave label.")
     parser.add_argument("--out", required=True, type=Path, help="Output report directory.")
     return parser.parse_args(argv)
@@ -1418,9 +1930,11 @@ def main(argv: list[str]) -> int:
         raise SystemExit(f"Missing pptx: {args.pptx}")
     if args.spec and not args.spec.exists():
         raise SystemExit(f"Missing spec: {args.spec}")
+    if args.mapping_spec and not args.mapping_spec.exists():
+        raise SystemExit(f"Missing mapping_spec: {args.mapping_spec}")
     if args.history_config_dir and not args.history_config_dir.exists():
         raise SystemExit(f"Missing history_config_dir: {args.history_config_dir}")
-    if args.mode in {"mapping", "infer-config"}:
+    if args.mode in {"mapping", "infer-config", "render"}:
         if not args.db_export_dir:
             raise SystemExit(f"Missing --db-export-dir in {args.mode} mode.")
         if not args.db_export_dir.exists():
@@ -1499,6 +2013,65 @@ def main(argv: list[str]) -> int:
             None,
             None,
             mapping_meta,
+            placeholder_rows,
+            slide_rows,
+            db_export_meta,
+            mode=args.mode,
+        )
+        (args.out / "summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.mode == "render":
+        config_tables, result_headers, db_export_meta = load_db_exports(args.db_export_dir)
+        config_source = "db_export_config_tables"
+        if args.mapping_spec:
+            config_tables = parse_mapping_spec_to_config(args.mapping_spec)
+            config_source = "mapping_spec"
+        result_rows = load_result_rows(args.db_export_dir)
+        output_pptx = args.output_pptx or (args.out / f"{args.pptx.stem}.rendered.pptx")
+
+        validation_rows, render_report = render_pptx(
+            args.pptx,
+            output_pptx,
+            config_tables,
+            result_rows,
+        )
+        write_csv(
+            args.out / "render_validation.csv",
+            validation_rows,
+            ["type", "page", "target", "status", "detail", "updated_items"],
+        )
+        render_report = {
+            **render_report,
+            "config_source": config_source,
+            "mapping_spec": str(args.mapping_spec) if args.mapping_spec else "",
+            "result_table_exports": len(result_rows),
+            "config_rows": {name: len(rows) for name, rows in config_tables.items()},
+        }
+        (args.out / "render_report.json").write_text(
+            json.dumps(render_report, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        render_meta = {
+            "output_pptx": str(output_pptx),
+            "text_replacements": render_report["text_replacements"],
+            "unresolved_placeholders_after_render": render_report["unresolved_placeholders_after_render"],
+            "charts_requested": render_report["charts_requested"],
+            "charts_ok": render_report["charts_ok"],
+            "charts_partial_or_failed": render_report["charts_partial_or_failed"],
+            "config_source": config_source,
+            "wave": args.wave,
+        }
+        summary = build_summary(
+            ppt_meta,
+            None,
+            None,
+            render_meta,
             placeholder_rows,
             slide_rows,
             db_export_meta,

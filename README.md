@@ -16,6 +16,7 @@ PPT 模板 + spec 指标规则 + 已导入数据库的 DP 结果表
 
 - `infer-config`：没有配置表时，从 PPT、spec、结果表导出中自动推断并生成配置表草稿。
 - `mapping`：已经有配置表时，检查配置表、PPT 模板、结果表之间是否匹配。
+- `render`：读取配置表或 `mapping_spec.generated.yaml`，替换 PPT 文本占位符并刷新支持的图表缓存。
 - `extract`：旧模式，用于从问卷 Excel 和人工刷数代码里抽上下文；当前主流程一般不需要。
 
 ## 推荐输入
@@ -127,6 +128,38 @@ python3 ai_brush_helper/run_mvp.py \
   --out reports/sample_mapping
 ```
 
+### 渲染 PPT
+
+如果已经有配置表和结果表，可以直接渲染：
+
+```bash
+python3 ai_brush_helper/run_mvp.py \
+  --mode render \
+  --pptx /Users/pingchaolee/Downloads/Breztri_report_az_Prism_template_1014.pptx \
+  --db-export-dir examples/db_exports_sample \
+  --wave 25q3 \
+  --out reports/render_sample
+```
+
+也可以让渲染器读取 `mapping_spec.generated.yaml`：
+
+```bash
+python3 ai_brush_helper/run_mvp.py \
+  --mode render \
+  --pptx /Users/pingchaolee/Downloads/Breztri_report_az_Prism_template_1014.pptx \
+  --mapping-spec reports/sample_mapping/mapping_spec.generated.yaml \
+  --db-export-dir examples/db_exports_sample \
+  --wave 25q3 \
+  --out reports/render_from_spec_sample
+```
+
+渲染输出：
+
+- `*.rendered.pptx`：渲染后的 PPT。
+- `render_validation.csv`：每页文本替换和每个图表刷新的状态。
+- `render_report.json`：渲染摘要，包括残留占位符数量、成功/失败图表数。
+- `summary.json`：整体摘要。
+
 ## 会生成什么
 
 `infer-config` 模式会生成：
@@ -149,6 +182,13 @@ python3 ai_brush_helper/run_mvp.py \
 - `mapping_spec.generated.yaml`：根据 DB 配置生成的可审查映射 spec。
 - `summary.json`：本次运行摘要。
 
+`render` 模式会生成：
+
+- 渲染后的 PPTX。
+- `render_validation.csv`：文本和图表级别校验结果。
+- `render_report.json`：渲染摘要。
+- `summary.json`：整体摘要。
+
 ## 如何复现到其他项目
 
 每次换一个问卷或 PPT 模板，不需要重新读问卷 Excel，只要准备：
@@ -158,13 +198,14 @@ python3 ai_brush_helper/run_mvp.py \
 3. 可选的 spec 指标规则，写明页面、指标、特殊排序、特殊字段名、图表规则。
 4. 可选的上一期配置表导出：`bh_database_table`、`bh_database_table_field`、`bh_charts_replaces`。
 
-然后先跑 `--mode infer-config` 生成配置表草稿，审查 `mapping_review.csv` 和三张 generated CSV。确认后再跑 `--mode mapping` 校验配置表和 PPT/结果表是否匹配。
+然后先跑 `--mode infer-config` 生成配置表草稿，审查 `mapping_review.csv` 和三张 generated CSV。确认后再跑 `--mode mapping` 校验配置表和 PPT/结果表是否匹配，最后跑 `--mode render` 输出成品 PPT。
 
 ## 当前边界
 
-这个 MVP 已经开始解决“人工写代码生成配置表”的问题，但还没有接入真实 PPT 渲染器。下一步应该做：
+这个 MVP 已经开始解决“人工写代码生成配置表”和“按配置渲染 PPT”的问题。当前渲染器边界：
 
-1. 让渲染器读取 `mapping_spec.generated.yaml`。
-2. 用 `bh_charts_replaces` 替换 PPT 文本占位符。
-3. 用 `bh_database_table` + `bh_database_table_field` + 结果表数据刷新图表数据源。
-4. 渲染后校验 PPT 里没有残留 `${...}`，图表数据列都能找到。
+1. 已支持读取配置表或 `mapping_spec.generated.yaml`。
+2. 已支持用 `bh_charts_replaces` 替换 PPT 文本占位符。
+3. 已支持常见图表的缓存数据刷新，并尽量同步嵌入 Excel。
+4. 已支持渲染后校验残留 `${...}` 和图表刷新状态。
+5. 复杂图表、特殊透视结构、被拆分到多个文本 run 的占位符，可能仍需要在 `render_validation.csv` 中人工审查。

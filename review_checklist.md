@@ -51,3 +51,6 @@
 - 每个图表都能打开编辑数据，不应出现空数据源。
 - 页码、标题、脚注、wave 标签没有沿用旧项目内容。
 - 抽查关键页面与 `ppt_to_db_mapping.csv` 的表名、字段、值一致。
+- 检查 `render_validation.csv` 中所有非 `ok` 行。
+- 检查 `render_report.json` 中 `unresolved_placeholders_after_render` 是否为 0。
+- 对 `partial_series_count_mismatch`、`unsupported_no_series`、`unsupported_no_value_cache` 的图表做人工复核。
