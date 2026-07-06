@@ -171,6 +171,12 @@ python3 ai_brush_helper/run_mvp.py \
 - `config_spec.generated.yaml`：配置表草稿对应的 YAML spec。
 - `validation_report.json`：低置信度、TODO、待审查字段统计。
 
+字段置信度规则：
+
+- `high`：字段来自历史配置，或在 spec 的 `required_columns` 中明确声明。
+- `medium`：字段名属于常见图表角色，例如 `brand`、`value`、`base`、`message`、`stage`。
+- `low`：只能确认它来自结果表表头，但没有更多语义证据。
+
 `mapping` 模式会生成：
 
 - `ppt_placeholders.csv`：PPT 模板里的 `${VIEW...}` 占位符。

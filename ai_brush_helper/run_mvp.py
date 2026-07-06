@@ -991,26 +991,51 @@ def tokenize_for_match(value: str) -> set[str]:
 
 def parse_spec_hints(spec_path: Path | None) -> dict[str, Any]:
     if not spec_path:
-        return {"page_tables": {}, "text": ""}
+        return {"page_tables": {}, "required_columns": {}, "text": ""}
     try:
         text = spec_path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         text = spec_path.read_text(encoding="utf-8", errors="ignore")
 
     page_tables: dict[int, set[str]] = defaultdict(set)
+    required_columns: dict[tuple[int, str], set[str]] = defaultdict(set)
     current_page = 0
+    current_table = ""
+    in_required_columns = False
     for raw_line in text.splitlines():
         line = raw_line.strip()
         page_match = re.match(r"-?\s*page\s*:\s*(\d+)", line)
         if page_match:
             current_page = int(page_match.group(1))
+            current_table = ""
+            in_required_columns = False
             continue
         if current_page <= 0:
             continue
+        table_match = re.match(r"(?:-\s*)?table\s*:\s*([A-Za-z][A-Za-z0-9_]*_\d{2}q[1-4])", line)
+        if table_match:
+            current_table = table_match.group(1)
+            page_tables[current_page].add(current_table)
+            in_required_columns = False
+            continue
+        if re.match(r"required_columns\s*:", line):
+            in_required_columns = True
+            continue
+        if in_required_columns:
+            column_match = re.match(r"-\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", line)
+            if column_match and current_table:
+                required_columns[(current_page, current_table)].add(column_match.group(1))
+                continue
+            if line and not line.startswith("-"):
+                in_required_columns = False
         for table_name in re.findall(r"[A-Za-z][A-Za-z0-9_]*_\d{2}q[1-4]", line):
             page_tables[current_page].add(table_name)
 
-    return {"page_tables": {page: sorted(tables) for page, tables in page_tables.items()}, "text": text}
+    return {
+        "page_tables": {page: sorted(tables) for page, tables in page_tables.items()},
+        "required_columns": {f"{page}:{table}": sorted(columns) for (page, table), columns in required_columns.items()},
+        "text": text,
+    }
 
 
 def score_table_for_slide(slide: dict[str, Any], table_name: str, wave: str, spec_hints: dict[str, Any]) -> tuple[int, list[str]]:
@@ -1090,6 +1115,47 @@ def field_display_name(column_name: str, history_field_name: str = "") -> str:
         "percent": "百分比",
     }
     return replacements.get(cleaned.lower(), cleaned)
+
+
+def infer_field_confidence(
+    page: int,
+    table_name: str,
+    column_name: str,
+    spec_hints: dict[str, Any],
+    has_history_field: bool,
+) -> tuple[str, str, str]:
+    if has_history_field:
+        return "high", "ready", "copied_from_history"
+
+    required_columns = set(spec_hints.get("required_columns", {}).get(f"{page}:{table_name}", []))
+    if column_name in required_columns:
+        return "high", "ready", "spec_required_column"
+
+    common_role_columns = {
+        "brand",
+        "value",
+        "base",
+        "n",
+        "pct",
+        "percent",
+        "stage",
+        "message",
+        "segment",
+        "group",
+        "name",
+        "region",
+        "area",
+        "category",
+        "label",
+        "wave",
+    }
+    if column_name.lower() in common_role_columns:
+        return "medium", "needs_review", "known_field_role"
+
+    if re.search(r"(value|rate|pct|percent|score|rank|base|brand|message|stage|segment|group)", column_name, re.IGNORECASE):
+        return "medium", "needs_review", "field_name_pattern"
+
+    return "low", "needs_review", "from_result_table_header"
 
 
 def build_history_indexes(config_tables: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
@@ -1226,15 +1292,23 @@ def infer_config_tables(
             )
 
             for column in headers:
-                display = field_display_name(column, history_field_names.get((base_key, column), ""))
+                history_display = history_field_names.get((base_key, column), "")
+                display = field_display_name(column, history_display)
+                field_confidence, field_status, field_reason = infer_field_confidence(
+                    page,
+                    table_name,
+                    column,
+                    spec_hints,
+                    bool(history_display),
+                )
                 generated_fields.append(
                     {
                         "table_id": table_id,
                         "name": display,
                         "database_column_name": column,
-                        "confidence": "medium" if (base_key, column) in history_field_names else "low",
-                        "status": "ready" if (base_key, column) in history_field_names else "needs_review",
-                        "reason": "copied_from_history" if (base_key, column) in history_field_names else "from_result_table_header",
+                        "confidence": field_confidence,
+                        "status": field_status,
+                        "reason": field_reason,
                     }
                 )
             table_id += 1
@@ -1264,6 +1338,9 @@ def infer_config_tables(
         "high_confidence_tables": sum(1 for row in generated_tables if row["confidence"] == "high"),
         "medium_confidence_tables": sum(1 for row in generated_tables if row["confidence"] == "medium"),
         "low_confidence_tables": sum(1 for row in generated_tables if row["confidence"] == "low"),
+        "high_confidence_fields": sum(1 for row in generated_fields if row["confidence"] == "high"),
+        "medium_confidence_fields": sum(1 for row in generated_fields if row["confidence"] == "medium"),
+        "low_confidence_fields": sum(1 for row in generated_fields if row["confidence"] == "low"),
         "result_table_exports": len(result_headers),
         "wave": wave,
     }
