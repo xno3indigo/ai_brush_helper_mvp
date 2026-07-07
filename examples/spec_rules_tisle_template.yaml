@@ -1,0 +1,68 @@
+# Tisle/EC 项目增强映射规则模板。
+# 这不是最终业务 spec，而是给 auto_mapper 提供更可信的页面/指标提示。
+
+wave:
+  source: 26h1
+  target_ppt: 26W1
+  previous_ppt: 25W2
+
+brand_aliases:
+  百泽安: [百泽安, 替雷利珠单抗, 百济神州]
+  达伯舒: [达伯舒, 信迪利单抗, 信达生物]
+  艾瑞卡: [艾瑞卡, 卡瑞利珠单抗, 恒瑞医药]
+  拓益: [拓益, 特瑞普利单抗, 君实生物]
+  可瑞达: [可瑞达, K药, 帕博利珠单抗, 默沙东]
+  欧狄沃: [欧狄沃, O药, 纳武利尤单抗, 百时美施贵宝]
+  汉斯状: [汉斯状, 斯鲁利单抗, 复宏汉霖]
+  择捷美: [择捷美, 舒格利单抗]
+
+metric_question_map:
+  TOM:
+    question_code: B1a
+    table_hint: 品牌第一提及
+  spontaneous_awareness:
+    question_code: B1b
+    table_hint: 其他自发提及
+  total_awareness:
+    question_code: B1c
+    table_hint: 提示后知晓
+  p3m_prescribed:
+    question_code: C1a
+    table_hint: 品牌处方使用
+  p3m_regular:
+    question_code: C1b
+    table_hint: 经常处方
+  p3m_most:
+    question_code: C1c
+    table_hint: 最常处方
+  share:
+    question_code: C2
+    table_hint: 品牌处方占比
+  nps_promotor:
+    question_code: NPS_PROMOTOR
+  nps_detractor:
+    question_code: NPS_DETRACTOR
+  nps_score:
+    question_code: NPS_SCORE
+  call_coverage:
+    question_code: E1a
+  call_frequency:
+    question_code: E2
+  activity_contact:
+    question_code: F1
+
+# 可逐步补充精确页面规则。越明确，自动映射越可信。
+page_rules:
+  19:
+    expected_questions: [B1a, B1b, B1c]
+    note: 品牌第一提及/自发/提示后知晓组合图
+  23:
+    expected_questions: [B1c, C1a, C1b, C1c]
+    note: 渗透率阶梯组合图
+  30:
+    expected_questions: [E1a, E2]
+    note: 拜访覆盖率和拜访频率
+  36:
+    expected_questions: [F1]
+    note: 学术活动接触次数
+

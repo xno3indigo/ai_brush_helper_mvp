@@ -19,6 +19,78 @@ PPT 模板 + spec 指标规则 + 已导入数据库的 DP 结果表
 - `render`：读取配置表或 `mapping_spec.generated.yaml`，替换 PPT 文本占位符并刷新支持的图表缓存。
 - `extract`：旧模式，用于从问卷 Excel 和人工刷数代码里抽上下文；当前主流程一般不需要。
 
+## 增强流程：DP Excel 到 PPT 图表映射
+
+对于没有 `${...}` 占位符、且 PPT 图表依赖内嵌 Excel 的模板，可以使用增强流程：
+
+```bash
+python3 -m ai_brush_helper.run_enhanced_flow \
+  --mode all \
+  --excel "/path/to/DP.xlsx" \
+  --pptx "/path/to/template.pptx" \
+  --sheet "DP_问卷" \
+  --wave 26h1 \
+  --target-wave 26W1 \
+  --spec examples/spec_rules_tisle_template.yaml \
+  --out reports/enhanced_run \
+  --min-confidence medium
+```
+
+增强流程会生成四组中间产物：
+
+- `01_dp_import/`：从 `DP_问卷` 拆出的宽表、长表和 `_manifest.json`。
+- `02_ppt_inspect/`：每个 PPT chart 的清单，包括 chart XML、内嵌 workbook、series/category 和形状猜测。
+- `03_mapping/`：增强版 `mapping_spec.enhanced.json/yaml` 和 `mapping_review.enhanced.csv`。
+- `04_render/`：增强渲染后的 PPT、`render_validation.enhanced.csv` 和 `render_report.enhanced.json`。
+
+增强流程当前仍是“半自动审查优先”。如果 `render_validation.enhanced.csv` 中出现大量 `no_matching_cells`，通常说明：
+
+- mapping 只找到了相似题目，但没有找到可以投影到该图表的行列组合。
+- 一个 PPT 图表需要多个 DP 问题组合，例如总知晓 + P3M 处方过 + 经常处方 + 最常处方。
+- 模板内嵌 workbook 使用了旧 wave、品牌别名、手工辅助列或特殊图表结构。
+- 需要在 spec 中补充 `page_rules`、`metric_question_map` 或品牌/指标别名。
+
+## 局部示例：第 7/8 页自动生成并写入数据库配置表
+
+当前 `tracking_dlbcl` 示例已经支持：
+
+```text
+PPT 模板 + tracking_dlbcl 数据库结果表
+→ 自动识别第 7/8 页图表位置和指标角色
+→ 生成 bh_database_table / bh_database_table_field 草稿
+→ 可选写入数据库中的空白配置表
+```
+
+先 dry run，只生成文件、不写库：
+
+```bash
+python3 -m ai_brush_helper.generate_pages_7_8_dlbcl_config \
+  --pptx "/Users/pingchaolee/Downloads/Tisle_26W1_EC_template with 25W2 data_0705.pptx" \
+  --out reports/dlbcl_pages_7_8_config_dryrun
+```
+
+确认 `mapping_review.pages_7_8.csv` 后，再写入数据库：
+
+```bash
+python3 -m ai_brush_helper.generate_pages_7_8_dlbcl_config \
+  --pptx "/Users/pingchaolee/Downloads/Tisle_26W1_EC_template with 25W2 data_0705.pptx" \
+  --out reports/dlbcl_pages_7_8_config_dbwrite \
+  --write-db
+```
+
+安全规则：
+
+- 默认只在配置表为空时写入。
+- 如果 `bh_database_table` / `bh_database_table_field` / `bh_charts_replaces` 已有数据，脚本会跳过写入。
+- 只有明确传 `--replace-existing-config` 时，才会先清空这三张配置表再写入。
+- `SOC`、`Adoption Rate` 这类数据库中找不到源表/字段的映射会留在 `mapping_review.pages_7_8.csv`，不会写入配置表。
+
+本地这次写入后的结果是：
+
+- `bh_database_table`：5 行。
+- `bh_database_table_field`：21 行。
+- `bh_charts_replaces`：0 行。
+
 ## 推荐输入
 
 `infer-config` 模式需要这些材料：
