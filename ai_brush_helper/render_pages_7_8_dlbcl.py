@@ -113,6 +113,57 @@ def workbook_bytes_from_matrix(matrix: list[list[Any]]) -> bytes:
     return output.getvalue()
 
 
+def safe_sheet_name(value: str, used: set[str]) -> str:
+    base = re.sub(r"[:\\/?*\[\]]", "_", value)[:31] or "Sheet"
+    name = base
+    index = 2
+    while name in used:
+        suffix = f"_{index}"
+        name = base[: 31 - len(suffix)] + suffix
+        index += 1
+    used.add(name)
+    return name
+
+
+def append_matrix_sheet(wb: Workbook, name: str, matrix: list[list[Any]], used: set[str]) -> None:
+    ws = wb.create_sheet(safe_sheet_name(name, used))
+    for row in matrix:
+        ws.append(row)
+
+
+def rows_to_matrix(rows: list[dict[str, Any]]) -> list[list[Any]]:
+    if not rows:
+        return [["no_rows"]]
+    headers = list(rows[0].keys())
+    return [headers] + [[row.get(header) for header in headers] for row in rows]
+
+
+def write_data_workbook(
+    path: Path,
+    chart_matrices: list[tuple[str, list[list[Any]]]],
+    source_tables: dict[str, list[dict[str, Any]]],
+    validation: list[dict[str, Any]],
+) -> None:
+    wb = Workbook()
+    used = {wb.active.title}
+    wb.active.title = safe_sheet_name("readme", set())
+    used = {wb.active.title}
+    wb.active.append(["type", "name", "description"])
+    wb.active.append(["chart_matrix", "chart_*", "actual matrices written to embedded PPT workbooks"])
+    wb.active.append(["source_table", "source_*", "raw rows fetched from tracking_dlbcl"])
+    wb.active.append(["validation", "render_validation", "rendered/skipped status for each target chart"])
+
+    for name, matrix in chart_matrices:
+        append_matrix_sheet(wb, name, matrix, used)
+
+    for table, rows in source_tables.items():
+        append_matrix_sheet(wb, f"source_{table}", rows_to_matrix(rows), used)
+
+    append_matrix_sheet(wb, "render_validation", rows_to_matrix(validation), used)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path)
+
+
 def replace_embedded_workbook(original_bytes: bytes, matrix: list[list[Any]]) -> bytes:
     wb = load_workbook(io.BytesIO(original_bytes))
     ws = wb[wb.sheetnames[0]]
@@ -220,11 +271,16 @@ def update_slide_text(slide_bytes: bytes, replacements: dict[str, str]) -> bytes
 
 def render(args: argparse.Namespace) -> dict[str, Any]:
     conn = connect(args)
-    awareness = brand_index(fetch_table(conn, "brand_awareness_total_26w2"))
-    nps = brand_index(fetch_table(conn, "nps_score_total_26w2"))
+    awareness_rows = fetch_table(conn, "brand_awareness_total_26w2")
+    sov_rows = fetch_table(conn, "sov_total_26w2")
+    nps_rows = fetch_table(conn, "nps_score_total_26w2")
+    equity_source_rows = fetch_table(conn, "brand_equity_total_26w2")
+    awareness = brand_index(awareness_rows)
+    sov = brand_index(sov_rows)
+    nps = brand_index(nps_rows)
     equity_rows = [
         row
-        for row in fetch_table(conn, "brand_equity_total_26w2")
+        for row in equity_source_rows
         if row.get("ranking") is not None and row.get("attr") and all(row.get(col) is not None for col in [
             "赞必佳（芦比替定）_132",
             "免疫 + 化疗（不含芦比替定_170",
@@ -237,12 +293,18 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
 
     validation: list[dict[str, Any]] = []
     replacements: dict[str, bytes] = {}
+    chart_matrices: list[tuple[str, list[list[Any]]]] = []
 
     categories = BRAND_ORDER
-    tom_values = [float(awareness[brand]["tom"]) for brand in categories if brand in awareness]
-    promoter_values = [float(nps[brand]["推荐者"]) for brand in categories if brand in nps]
-    detractor_values = [float(nps[brand]["贬损者"]) for brand in categories if brand in nps]
-    nps_values = [float(nps[brand]["NPS"]) for brand in categories if brand in nps]
+    tom_values = [float(awareness[brand]["tom"]) if brand in awareness else None for brand in categories]
+    sov_values = [float(sov[brand]["sov"]) if brand in sov else None for brand in categories]
+    nps_values = [float(nps[brand]["NPS"]) if brand in nps else None for brand in categories]
+    # The small horizontal charts on slide 7 are overlaid on static brand labels.
+    # Their category axis renders last data point at the top, so chart data must be
+    # written bottom-to-top to align visually with the template's top-to-bottom labels.
+    row_overlay_categories = list(reversed(categories))
+    sov_plot_values = list(reversed(sov_values))
+    nps_plot_values = list(reversed(nps_values))
 
     equity_products = [
         "赞必佳（芦比替定）_132",
@@ -270,30 +332,45 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
                 "matrix": [["", "25W2", "26W2"], *[[brand, None, value] for brand, value in zip(categories, tom_values)]],
                 "chart_bytes": update_bar_chart(archive.read(slide7_charts[0]), categories, [("25W2", [None] * len(categories)), ("26W2", tom_values)]),
                 "source": "brand_awareness_total_26w2.tom",
+                "sheet": "chart_7_1_TOM",
             },
             {
                 "slide": 7,
                 "sort": 2,
                 "chart": slide7_charts[1],
-                "matrix": [["", "推荐者"], *[["", value] for value in promoter_values]],
-                "chart_bytes": update_bar_chart(archive.read(slide7_charts[1]), categories, [("推荐者", promoter_values)]),
-                "source": "nps_score_total_26w2.推荐者",
+                "matrix": [["status", "reason"], ["skipped", "SOC source table/field not found in tracking_dlbcl"]],
+                "chart_bytes": None,
+                "source": "SOC source table missing",
+                "sheet": "chart_7_2_SOC_skipped",
+                "skip_status": "skipped_source_table_not_found",
             },
             {
                 "slide": 7,
                 "sort": 3,
                 "chart": slide7_charts[2],
-                "matrix": [["", "贬损者"], *[["", value] for value in detractor_values]],
-                "chart_bytes": update_bar_chart(archive.read(slide7_charts[2]), categories, [("贬损者", detractor_values)]),
-                "source": "nps_score_total_26w2.贬损者",
+                "matrix": [["plot_order_brand", "SOV"], *[[brand, value] for brand, value in zip(row_overlay_categories, sov_plot_values)]],
+                "chart_bytes": update_bar_chart(archive.read(slide7_charts[2]), row_overlay_categories, [("SOV", sov_plot_values)]),
+                "source": "sov_total_26w2.sov",
+                "sheet": "chart_7_3_SOV",
             },
             {
                 "slide": 7,
                 "sort": 4,
                 "chart": slide7_charts[3],
-                "matrix": [["", "NPS"], *[["", value] for value in nps_values]],
-                "chart_bytes": update_bar_chart(archive.read(slide7_charts[3]), categories, [("NPS", nps_values)]),
+                "matrix": [["plot_order_brand", "NPS"], *[[brand, value] for brand, value in zip(row_overlay_categories, nps_plot_values)]],
+                "chart_bytes": update_bar_chart(archive.read(slide7_charts[3]), row_overlay_categories, [("NPS", nps_plot_values)]),
                 "source": "nps_score_total_26w2.NPS",
+                "sheet": "chart_7_4_NPS",
+            },
+            {
+                "slide": 7,
+                "sort": 5,
+                "chart": slide7_charts[4],
+                "matrix": [["status", "reason"], ["skipped", "Adoption Rate source table not found and embedded workbook is xlsb"]],
+                "chart_bytes": None,
+                "source": "Adoption Rate source table missing",
+                "sheet": "chart_7_5_Adoption_skipped",
+                "skip_status": "skipped_source_table_not_found_xlsb",
             },
             {
                 "slide": 8,
@@ -308,6 +385,7 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
                     ],
                 ),
                 "source": "brand_equity_total_26w2 raw score",
+                "sheet": "chart_8_1_equity_raw",
             },
             {
                 "slide": 8,
@@ -322,11 +400,26 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
                     ],
                 ),
                 "source": "brand_equity_total_26w2 score/100",
+                "sheet": "chart_8_2_equity_ratio",
             },
         ]
 
         for job in jobs:
             chart_path = job["chart"]
+            chart_matrices.append((job["sheet"], job["matrix"]))
+            if job.get("skip_status"):
+                validation.append(
+                    {
+                        "slide": job["slide"],
+                        "chart_sort": job["sort"],
+                        "chart_path": chart_path,
+                        "source": job["source"],
+                        "status": job["skip_status"],
+                        "rows": len(job["matrix"]) - 1,
+                        "columns": len(job["matrix"][0]),
+                    }
+                )
+                continue
             embeddings = embedded_workbooks(archive, chart_path)
             if not embeddings:
                 status = "missing_embedded_workbook"
@@ -367,9 +460,21 @@ def render(args: argparse.Namespace) -> dict[str, Any]:
         writer = csv.DictWriter(handle, fieldnames=["slide", "chart_sort", "chart_path", "source", "status", "rows", "columns"])
         writer.writeheader()
         writer.writerows(validation)
+    write_data_workbook(
+        args.data_xlsx,
+        chart_matrices,
+        {
+            "brand_awareness_total_26w2": awareness_rows,
+            "sov_total_26w2": sov_rows,
+            "nps_score_total_26w2": nps_rows,
+            "brand_equity_total_26w2": equity_source_rows,
+        },
+        validation,
+    )
     return {
         "output": str(args.output),
         "report": str(args.report),
+        "data_xlsx": str(args.data_xlsx),
         "updated_jobs": sum(1 for row in validation if row["status"] == "ok"),
         "validation": validation,
     }
@@ -380,6 +485,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pptx", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--data-xlsx", type=Path, required=True)
     parser.add_argument("--host", default="192.168.20.7")
     parser.add_argument("--port", type=int, default=3306)
     parser.add_argument("--user", default="root")

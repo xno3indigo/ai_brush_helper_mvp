@@ -55,6 +55,134 @@ reports/
   ...
 ```
 
+### 2.1 本机路径索引
+
+下面是当前项目交接最常用的本机绝对路径。
+
+项目根目录：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp
+```
+
+GitHub 远端：
+
+```text
+https://github.com/xno3indigo/ai_brush_helper_mvp.git
+```
+
+核心文档：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/README.md
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/docs/PROJECT_HANDOFF.md
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/review_checklist.md
+```
+
+核心代码：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/run_mvp.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/run_enhanced_flow.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/dp_workbook_importer.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/ppt_chart_inspector.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/auto_mapper.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/ppt_renderer.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/generate_pages_7_8_dlbcl_config.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/render_pages_7_8_dlbcl.py
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/common.py
+```
+
+spec 和示例数据：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/examples/spec_rules_sample.yaml
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/examples/spec_rules_tisle_template.yaml
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/examples/db_exports_sample
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/examples/result_tables_sample
+```
+
+当前重点输入文件：
+
+```text
+/Users/pingchaolee/Downloads/Tisle_26W1_EC_template with 25W2 data_0705.pptx
+/Users/pingchaolee/Downloads/Tisle ESCC 26H1_DP_20260703T1800.xlsx
+```
+
+历史参考输入文件：
+
+```text
+/Users/pingchaolee/Downloads/dp-az-feature-az-prism-25q3
+/Users/pingchaolee/Downloads/prism_总问卷_20251029_25q3(N=659).xlsx
+/Users/pingchaolee/Downloads/Breztri_report_az_Prism_template_1014.pptx
+/Users/pingchaolee/Downloads/Breztri_report_az_Prism_20251106160455.pptx
+/Users/pingchaolee/Desktop/dp-az-main
+/Users/pingchaolee/Desktop/自动化文档需要的图
+```
+
+当前重点输出目录：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite_dryrun
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_visual
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_test
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/db_exports_20260707
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/tisle_26h1_enhanced_v3
+```
+
+当前重点输出文件：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/mapping_review.pages_7_8.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/bh_database_table.generated.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/bh_database_table_field.generated.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/db_write_report.pages_7_8.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/summary.pages_7_8.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/ppt_inspect/ppt_chart_inventory.csv
+```
+
+局部渲染测试产物：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/Tisle_pages_7_8_tracking_dlbcl.current.rendered.pptx
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/render_pages_7_8_data.xlsx
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/render_pages_7_8_report.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/Tisle_pages_7_8_tracking_dlbcl.current.rendered.pdf
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/pdf_preview/page-06.png
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/pdf_preview/page-07.png
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/pdf_preview/page-08.png
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_test/Tisle_pages_7_8_tracking_dlbcl.rendered.pptx
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_test/render_pages_7_8_report.csv
+```
+
+数据库导出 Excel：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/db_exports_20260707/tracking_dlbcl_config_and_data_tables_20260707.xlsx
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/db_exports_20260707/tracking_dlbcl_config_and_data_tables_20260707.summary.json
+```
+
+增强流程最近产物：
+
+```text
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/tisle_26h1_enhanced_v3/summary.enhanced.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/tisle_26h1_enhanced_v3/03_mapping/mapping_review.enhanced.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/tisle_26h1_enhanced_v3/03_mapping/mapping_spec.enhanced.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/tisle_26h1_enhanced_v3/04_render/Tisle_26W1_EC_template_with_26H1_data.enhanced.v3.rendered.pptx
+```
+
+数据库：
+
+```text
+MySQL host: 192.168.20.7
+MySQL port: 3306
+MySQL user: root
+MySQL password: root
+MySQL database: tracking_dlbcl
+```
+
 ## 3. 当前能力总览
 
 ### 3.1 通用 MVP 流程
@@ -96,15 +224,15 @@ python3 -m ai_brush_helper.run_enhanced_flow \
   --sheet "DP_问卷" \
   --wave 26h1 \
   --target-wave 26W1 \
-  --spec examples/spec_rules_tisle_template.yaml \
-  --out reports/enhanced_run \
+  --spec /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/examples/spec_rules_tisle_template.yaml \
+  --out /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/enhanced_run \
   --min-confidence medium
 ```
 
 已知表现：
 
 ```text
-reports/tisle_26h1_enhanced_v3/summary.enhanced.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/tisle_26h1_enhanced_v3/summary.enhanced.json
 ```
 
 最近一次结果：
@@ -195,7 +323,7 @@ bh_charts_replaces 当前没有写入内容。
 
 ```text
 输出目录：
-reports/dlbcl_pages_7_8_config_dbwrite
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite
 
 写入前：
 bh_database_table: 0
@@ -211,7 +339,7 @@ bh_charts_replaces: 0
 写入报告：
 
 ```text
-reports/dlbcl_pages_7_8_config_dbwrite/db_write_report.pages_7_8.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/db_write_report.pages_7_8.json
 ```
 
 ## 5. 第 7/8 页当前映射结果
@@ -236,10 +364,46 @@ page 7 chart_sort 5 -> Adoption Rate
 原因：数据库中没有找到 adoption/penetration 对应结果表；该图表内嵌 workbook 是 xlsb，当前读取器不支持解析 xlsb。
 ```
 
+最新局部渲染测试：
+
+```text
+脚本：
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/render_pages_7_8_dlbcl.py
+
+输出目录：
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707
+
+生成 PPT：
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/Tisle_pages_7_8_tracking_dlbcl.current.rendered.pptx
+
+导出数据 Excel：
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/render_pages_7_8_data.xlsx
+
+渲染报告：
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_local_render_20260707/render_pages_7_8_report.csv
+```
+
+最新渲染测试结果：
+
+```text
+ok:
+  slide 7 chart_sort 1 -> brand_awareness_total_26w2.tom
+  slide 7 chart_sort 3 -> sov_total_26w2.sov
+  slide 7 chart_sort 4 -> nps_score_total_26w2.NPS
+  slide 8 chart_sort 1 -> brand_equity_total_26w2 raw score
+  slide 8 chart_sort 2 -> brand_equity_total_26w2 score/100
+
+skipped:
+  slide 7 chart_sort 2 -> SOC source table/field not found
+  slide 7 chart_sort 5 -> Adoption Rate source table not found and embedded workbook is xlsb
+```
+
+注意：第 7 页横向小条形图使用静态品牌文字叠加 chart 数据，PowerPoint 渲染时类别轴是反向显示的。因此 `render_pages_7_8_dlbcl.py` 会把 SOV/NPS 的写入矩阵按 bottom-to-top plot order 输出，确保视觉行和品牌文字对齐。
+
 审查文件：
 
 ```text
-reports/dlbcl_pages_7_8_config_dbwrite/mapping_review.pages_7_8.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/mapping_review.pages_7_8.csv
 ```
 
 ## 6. 如何运行
@@ -251,16 +415,16 @@ cd /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helpe
 
 python3 -m ai_brush_helper.generate_pages_7_8_dlbcl_config \
   --pptx "/Users/pingchaolee/Downloads/Tisle_26W1_EC_template with 25W2 data_0705.pptx" \
-  --out reports/dlbcl_pages_7_8_config_dryrun
+  --out /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dryrun
 ```
 
 重点检查：
 
 ```text
-reports/dlbcl_pages_7_8_config_dryrun/mapping_review.pages_7_8.csv
-reports/dlbcl_pages_7_8_config_dryrun/bh_database_table.generated.csv
-reports/dlbcl_pages_7_8_config_dryrun/bh_database_table_field.generated.csv
-reports/dlbcl_pages_7_8_config_dryrun/summary.pages_7_8.json
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dryrun/mapping_review.pages_7_8.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dryrun/bh_database_table.generated.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dryrun/bh_database_table_field.generated.csv
+/Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dryrun/summary.pages_7_8.json
 ```
 
 ### 6.2 写入数据库配置表
@@ -268,7 +432,7 @@ reports/dlbcl_pages_7_8_config_dryrun/summary.pages_7_8.json
 ```bash
 python3 -m ai_brush_helper.generate_pages_7_8_dlbcl_config \
   --pptx "/Users/pingchaolee/Downloads/Tisle_26W1_EC_template with 25W2 data_0705.pptx" \
-  --out reports/dlbcl_pages_7_8_config_dbwrite \
+  --out /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite \
   --write-db
 ```
 
@@ -284,7 +448,7 @@ python3 -m ai_brush_helper.generate_pages_7_8_dlbcl_config \
 ```bash
 python3 -m ai_brush_helper.generate_pages_7_8_dlbcl_config \
   --pptx "/Users/pingchaolee/Downloads/Tisle_26W1_EC_template with 25W2 data_0705.pptx" \
-  --out reports/dlbcl_pages_7_8_config_dbwrite_replace \
+  --out /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite_replace \
   --write-db \
   --replace-existing-config
 ```
@@ -620,43 +784,42 @@ db-write-report
 给下一个开发者的阅读顺序：
 
 ```text
-1. README.md
-2. docs/PROJECT_HANDOFF.md
-3. ai_brush_helper/generate_pages_7_8_dlbcl_config.py
-4. ai_brush_helper/ppt_chart_inspector.py
-5. reports/dlbcl_pages_7_8_config_dbwrite/mapping_review.pages_7_8.csv
-6. reports/dlbcl_pages_7_8_config_dbwrite/db_write_report.pages_7_8.json
-7. ai_brush_helper/run_mvp.py
-8. ai_brush_helper/run_enhanced_flow.py
-9. ai_brush_helper/ppt_renderer.py
+1. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/README.md
+2. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/docs/PROJECT_HANDOFF.md
+3. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/generate_pages_7_8_dlbcl_config.py
+4. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/ppt_chart_inspector.py
+5. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/mapping_review.pages_7_8.csv
+6. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/reports/dlbcl_pages_7_8_config_dbwrite/db_write_report.pages_7_8.json
+7. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/run_mvp.py
+8. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/run_enhanced_flow.py
+9. /Users/pingchaolee/Documents/Codex/2026-06-30/new-chat/outputs/ai_brush_helper_mvp/ai_brush_helper/ppt_renderer.py
 ```
 
 建议先复现第 7/8 页 dry run，再考虑泛化。
 
 ## 12. 当前 Git 状态提示
 
-截至本交接文档创建时，工作区有未提交改动和新增文件，包括：
+截至 2026-07-07，代码、README、示例 spec、局部渲染脚本和交接文档均应提交并推送到 GitHub。
 
 ```text
-README.md
-ai_brush_helper/auto_mapper.py
-ai_brush_helper/common.py
-ai_brush_helper/dp_workbook_importer.py
-ai_brush_helper/generate_pages_7_8_dlbcl_config.py
-ai_brush_helper/ppt_chart_inspector.py
-ai_brush_helper/ppt_renderer.py
-ai_brush_helper/render_pages_7_8_dlbcl.py
-ai_brush_helper/run_enhanced_flow.py
-examples/spec_rules_tisle_template.yaml
-docs/PROJECT_HANDOFF.md
+remote:
+https://github.com/xno3indigo/ai_brush_helper_mvp.git
 ```
 
-交接前建议：
+本次建议提交范围：
+
+```text
+M ai_brush_helper/render_pages_7_8_dlbcl.py
+M docs/PROJECT_HANDOFF.md
+```
+
+`reports/` 下的 PPT、Excel、CSV、PDF、PNG 等运行产物默认不提交；它们已经在文档中记录了本机绝对路径。
+
+交接前或接手后建议确认：
 
 ```bash
 git status --short
+git log -1 --oneline
+git remote -v
 python3 -m compileall ai_brush_helper
 ```
-
-如需提交到 GitHub，建议先确认是否要包含 `reports/` 下的产物。报告文件很多，通常不建议全部提交；更适合提交代码、README、docs、examples，小型样例数据可保留。
-
